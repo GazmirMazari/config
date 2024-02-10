@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -8,11 +11,11 @@ import (
 type Config struct {
 	ENV string     `yaml:"Env"`
 	AppName string  `yaml:"AppName"`
-	Port 	`yaml: "Port"`
+	Port 	 string `yaml: "Port"`
 	Logging  LoggingConfig 
-	ComponentConfigs ComponentsConfigs `yaml: "ComponentsConfigs"`
-	Databases DatabasesConfigMap: `yaml: "Databases"`
-	Services ServiceConfigMap: `yaml: "Services`
+	ComponentConfigs ComponentConfigs `yaml: "ComponentsConfigs"`
+	Databases DatabasesConfigMap `yaml: "Databases"`
+	Services ServiceConfigMap `yaml: "Services`
 	Hash     string `yaml: "Hash`
 }
 
@@ -21,6 +24,26 @@ type ComponentConfigs struct {
 	Client * ClientConfig
 	ServiceLogging ServiceLoggingConfig
 }
+
+type ClientConfig struct {
+	Timeout int 
+	IdleConnTimeout int
+	MaxIdleConsPerHost int
+	MaxConnsPerHost int
+	DisableCompression configFlag
+	InsecureSkipVerify configFlag
+	CabundlePath string
+	TLSHanshakeTimeout int
+	ResponseHeaderTimeout int
+}
+
+type conflig int
+
+const (
+	Unset configFlag = iota
+	False
+	True
+)
 
 
 func New(configPath string) (config *Config) {
