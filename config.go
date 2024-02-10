@@ -9,14 +9,17 @@ type Config struct {
 	ENV string     `yaml:"Env"`
 	AppName string  `yaml:"AppName"`
 	Port 	`yaml: "Port"`
+	Logging  LoggingConfig 
 	ComponentConfigs ComponentsConfigs `yaml: "ComponentsConfigs"`
 	Databases DatabasesConfigMap: `yaml: "Databases"`
 	Services ServiceConfigMap: `yaml: "Services`
+	Hash     string `yaml: "Hash`
 }
 
 
 type ComponentConfigs struct {
 	Client * ClientConfig
+	ServiceLogging ServiceLoggingConfig
 }
 
 
