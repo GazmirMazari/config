@@ -2,12 +2,12 @@ package config
 
 import (
 	"bytes"
-	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/imdario/mergo"
 	"github.com/jinzhu/copier"
@@ -15,6 +15,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Service struct {
+	Pool                     interface{}                   // This is a placeholder, adjust according to actual use
+	DatabaseService          func() (interface{}, []error) // Placeholder, adjust as needed
+	ComponentConfigOverrides ComponentConfigs
+	mergedComponentConfigs   ComponentConfigs
+}
+
+// newConfig initializes a new configuration struct from a file path.
 func (b *builder) newConfig(configPath string) (*Config, []error) {
 	var errs []error
 	if file, loadErrs := b.loadConfig(configPath); loadErrs != nil {
@@ -29,14 +37,9 @@ func (b *builder) newConfig(configPath string) (*Config, []error) {
 		service.setClient(*service.mergedComponents().Client)
 	}
 
-	var collErr error
 	var dbErrs []error
 	// initialize the Collector for each crawler
-	for _, crawler := range b.config.Crawlers {
-		if crawler.Collector, collErr = crawler.collector(); collErr != nil {
-			errs = appendAndLog(fmt.Errorf("newConfig: failed to build crawler; error: %w", collErr), errs)
-		}
-	}
+
 	for _, database := range b.config.Databases {
 		if database.Pool, dbErrs = database.DatabaseService(); dbErrs != nil {
 			errs = appendAndLog(fmt.Errorf("newConfig: %v", dbErrs), errs)
@@ -46,27 +49,34 @@ func (b *builder) newConfig(configPath string) (*Config, []error) {
 	return b.config, errs
 }
 
+// loadConfig attempts to load the configuration file.
 func (b *builder) loadConfig(configPath string) (*os.File, []error) {
-	if file, loadErr := b.Load(configPath); loadErr != nil {
-		return nil, []error{fmt.Errorf("newConfig: %w", loadErr)}
-	} else {
-		return file, nil
+	file, loadErr := b.Load(configPath)
+	if loadErr != nil {
+		return nil, []error{fmt.Errorf("loadConfig: %w", loadErr)}
 	}
+	return file, nil
 }
 
-func (b *builder) Load(path string) (file *os.File, err error) {
+// Load opens the configuration file.
+func (b *builder) Load(path string) (*os.File, error) {
 	log.Tracef("Loading config: %v", path)
 	b.configPath = path
-	if file, err = os.Open(path); err != nil {
+	file, err := os.Open(path)
+	if err != nil {
 		return nil, fmt.Errorf("Load: failed to open config file %v; %w", path, err)
 	}
-	return file, err
+	return file, nil
 }
 
-func (b *builder) Read(configData io.Reader) (err error) {
-	if b.config, err = initialConfig(configData); err != nil {
+// Read parses the configuration file.
+func (b *builder) Read(configData io.Reader) error {
+	config, err := initialConfig(configData)
+	if err != nil {
 		return err
 	}
+
+	b.config = config
 
 	if mergeErr := mergeServiceComponentConfigs(b.config); mergeErr != nil {
 		return fmt.Errorf("Read: failed to merge component configs, error: %w", mergeErr)
@@ -74,23 +84,24 @@ func (b *builder) Read(configData io.Reader) (err error) {
 	return nil
 }
 
+// initialConfig initializes the configuration from reader data.
 func initialConfig(data io.Reader) (*Config, error) {
 	buf := new(bytes.Buffer)
-
 	if _, buffErr := io.Copy(buf, data); buffErr != nil {
 		return nil, fmt.Errorf("initialConfig: failed to read config data; err: %w", buffErr)
 	}
 
 	config := new(Config)
-
-	if err := yaml.Unmarshal(buf.Bytes(), &config); err != nil {
+	if err := yaml.Unmarshal(buf.Bytes(), config); err != nil {
 		return nil, fmt.Errorf("initialConfig: failed unmarshalling config data; err: %w", err)
 	}
-	config.Hash = fmt.Sprintf("%x", md5.Sum(buf.Bytes()))
+	hash := sha256.Sum256(buf.Bytes())
+	config.Hash = hex.EncodeToString(hash[:])
 
 	return config, nil
 }
 
+// mergeServiceComponentConfigs merges service and component configurations.
 func mergeServiceComponentConfigs(c *Config) error {
 	for i, service := range c.Services {
 		if mergeErr := mergeConfigs(&service.ComponentConfigOverrides, &c.ComponentConfigs, &service.mergedComponentConfigs); mergeErr != nil {
@@ -100,29 +111,30 @@ func mergeServiceComponentConfigs(c *Config) error {
 	return nil
 }
 
-func mergeConfigs(override *ComponentConfigs, defaultC *ComponentConfigs, mergedC *ComponentConfigs) error {
+// mergeConfigs merges override and default component configurations.
+func mergeConfigs(override, defaultC, mergedC *ComponentConfigs) error {
 	if mergedC == nil {
 		return errors.New("mergeConfigs: nil pointer passed for merged components")
 	}
 
-	if err := copier.Copy(mergedC, override); err != nil && override != nil {
-		return fmt.Errorf("mergeConfigs: failed to copy config overrides; error: %w", err)
-	}
-
-	if err := mergo.Merge(mergedC, defaultC); err != nil && defaultC != nil {
-		return fmt.Errorf("mergeConfigs: failed to copy config defaults; error: %w", err)
-	}
-	return nil
-}
-
-func toInt(str string) int {
-	res := 0
-	var err error
-	if str != "" {
-		if res, err = strconv.Atoi(str); err != nil {
-			log.Errorf("toInt: failed to convert '%s' to int; error: %v", str, err)
+	// First, copy the default configuration to the merged configuration.
+	if defaultC != nil {
+		if err := copier.Copy(mergedC, defaultC); err != nil {
+			return fmt.Errorf("mergeConfigs: failed to copy default configs; error: %w", err)
 		}
 	}
 
-	return res
+	// Then, merge the override configuration into the merged configuration.
+	if override != nil {
+		if err := mergo.MergeWithOverwrite(mergedC, *override); err != nil {
+			return fmt.Errorf("mergeConfigs: failed to merge overrides; error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func appendAndLog(err error, errs []error) []error {
+	log.Error(err)           // Log the error.
+	return append(errs, err) // Append the error to the slice and return it.
 }

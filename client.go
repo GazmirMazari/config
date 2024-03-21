@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -24,17 +25,27 @@ func httpClient(cc ClientConfig) *http.Client {
 		disableCompression = true
 	}
 
-	if to := toInt(cc.Timeout); to != 0 {
-		timeout = to
+	timeoutValue := toInt(cc.Timeout)
+	if timeoutValue != 0 {
+		timeout = timeoutValue
 	}
+
+	maxIdleConsPerHost, _ := strconv.Atoi(cc.MaxIdleConsPerHost)
+	maxConsPerHost, _ := strconv.Atoi(cc.MaxConsPerHost)
+	idleConnTimeout, _ := strconv.Atoi(cc.IdleConnTimeout)
 
 	return &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 		Transport: &http.Transport{
-			IdleConnTimeout:     time.Duration(toInt(cc.IdleConnTimeout)) * time.Second,
-			MaxIdleConnsPerHost: toInt(cc.MaxIdleConsPerHost),
-			MaxConnsPerHost:     toInt(cc.MaxConsPerHost),
+			IdleConnTimeout:     time.Duration(idleConnTimeout) * time.Second,
+			MaxIdleConnsPerHost: maxIdleConsPerHost,
+			MaxConnsPerHost:     maxConsPerHost,
 			DisableCompression:  disableCompression,
 		},
 	}
+}
+
+func toInt(s string) int {
+	value, _ := strconv.Atoi(s)
+	return value
 }
