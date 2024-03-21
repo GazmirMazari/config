@@ -15,11 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type builder struct {
-	config     *Config
-	configPath string
-}
-
 func (b *builder) newConfig(configPath string) (*Config, []error) {
 	var errs []error
 	if file, loadErrs := b.loadConfig(configPath); loadErrs != nil {
@@ -31,7 +26,7 @@ func (b *builder) newConfig(configPath string) (*Config, []error) {
 	}
 
 	for _, service := range b.config.Services {
-		service.setClient(service.mergedComponents().Client)
+		service.setClient(*service.mergedComponents().Client)
 	}
 
 	var collErr error

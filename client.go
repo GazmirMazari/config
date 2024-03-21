@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+type configFlag bool
+
 type ClientConfig struct {
 	Timeout            string `yaml:"Timeout"`
 	IdleConnTimeout    string `yaml:"IdleConnTimeout"`

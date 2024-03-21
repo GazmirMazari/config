@@ -25,17 +25,7 @@ type ComponentConfigs struct {
 	ServiceLogging ServiceLoggingConfig
 }
 
-type ClientConfig struct {
-	Timeout int 
-	IdleConnTimeout int
-	MaxIdleConsPerHost int
-	MaxConnsPerHost int
-	DisableCompression configFlag
-	InsecureSkipVerify configFlag
-	CabundlePath string
-	TLSHanshakeTimeout int
-	ResponseHeaderTimeout int
-}
+
 
 type conflig int
 
