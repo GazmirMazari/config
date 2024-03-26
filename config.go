@@ -23,7 +23,7 @@ type ComponentConfigs struct {
 
 type conflig int
 
-func New(configPath string) (config *Config) {
+func Load(configPath string) (config *Config) {
 	log.Tracef("config: %s\n", configPath)
 	var errs []error
 	if config, errs = new(builder).newConfig(configPath); len(errs) > 0 || config == nil {
